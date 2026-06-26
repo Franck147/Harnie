@@ -1,0 +1,32 @@
+# Android / Gradle
+*.iml
+.gradle/
+.kotlin/
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Local config (NUNCA subir)
+local.properties
+
+# IDE
+/.idea/
+*.ipr
+*.iws
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build outputs / APKs
+release/
+*.apk
+*.aab
+*.aar
+*.ap_
+*.dex
+
+# Keystore / firmas (NUNCA subir)
+*.jks
+*.keystore

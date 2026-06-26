@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew.bat assembleDebug)",
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(Get-ChildItem \"C:\\\\Program Files\\\\Android\" -Recurse -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'jbr|jdk|jre' } | Select-Object -First 10)",
+      "Bash(JAVA_HOME=\"C:/Program Files/Android/Android Studio/jbr\" ./gradlew.bat assembleDebug)",
+      "Bash(JAVA_HOME=\"C:/Program Files/Android/Android Studio/jbr\" ./gradlew.bat assembleDebug --refresh-dependencies)",
+      "Bash(JAVA_HOME=\"C:/Program Files/Android/Android Studio/jbr\" ./gradlew.bat --stop)",
+      "PowerShell(& \"C:\\\\Users\\\\ADLER\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\emulator\\\\emulator.exe\" -list-avds)",
+      "PowerShell(& \"C:\\\\Users\\\\ADLER\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" devices)",
+      "PowerShell(Start-Process \"C:\\\\Users\\\\ADLER\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\emulator\\\\emulator.exe\" -ArgumentList \"-avd\", \"Pixel_9\" -PassThru | Select-Object Id)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; Set-Location \"D:\\\\Harnie\\\\App v2\"; .\\\\gradlew.bat compileDebugKotlin 2>&1 | Out-String)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; Set-Location \"D:\\\\Harnie\\\\App v2\"; .\\\\gradlew.bat clean 2>&1 | Out-String)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; Set-Location \"D:\\\\Harnie\\\\App v2\"; .\\\\gradlew.bat assembleDebug 2>&1 | Out-String)",
+      "Bash(./gradlew compileDebugKotlin)",
+      "Bash(where java *)",
+      "PowerShell(New-Item *)",
+      "PowerShell($g = \\(Get-Command git -ErrorAction SilentlyContinue\\); if\\($g\\){ git --version } else { \"git NOT installed\" }; $gh = \\(Get-Command gh -ErrorAction SilentlyContinue\\); if\\($gh\\){ gh --version } else { \"gh NOT installed\" })",
+      "PowerShell(git config *)",
+      "PowerShell($dirs = @\\(\"app\",\"gradle\",\"release\",\"supabase\",\"build\",\".gradle\",\".idea\",\".kotlin\"\\); foreach\\($d in $dirs\\){ $p = \"D:\\\\Harnie\\\\App v2\\\\$d\"; if\\(Test-Path $p\\){ $size = \\(Get-ChildItem $p -Recurse -File -ErrorAction SilentlyContinue | Measure-Object Length -Sum\\).Sum/1MB; \"{0,-12} {1,8:N1} MB\" -f $d, $size } })",
+      "PowerShell(\"=== app subdirs ===\"; Get-ChildItem -Force \"D:\\\\Harnie\\\\App v2\\\\app\" | Select-Object Name,Mode; \"=== release ===\"; Get-ChildItem -Force -Recurse \"D:\\\\Harnie\\\\App v2\\\\release\" | Select-Object FullName,@{n='MB';e={[math]::Round\\($_.Length/1MB,2\\)}} | Format-Table -AutoSize; \"=== app/build MB ===\"; if\\(Test-Path \"D:\\\\Harnie\\\\App v2\\\\app\\\\build\"\\){ [math]::Round\\(\\(Get-ChildItem \"D:\\\\Harnie\\\\App v2\\\\app\\\\build\" -Recurse -File | Measure-Object Length -Sum\\).Sum/1MB,1\\) })",
+      "PowerShell(git *)"
+    ]
+  }
+}
