@@ -20,7 +20,8 @@
       "PowerShell(git config *)",
       "PowerShell($dirs = @\\(\"app\",\"gradle\",\"release\",\"supabase\",\"build\",\".gradle\",\".idea\",\".kotlin\"\\); foreach\\($d in $dirs\\){ $p = \"D:\\\\Harnie\\\\App v2\\\\$d\"; if\\(Test-Path $p\\){ $size = \\(Get-ChildItem $p -Recurse -File -ErrorAction SilentlyContinue | Measure-Object Length -Sum\\).Sum/1MB; \"{0,-12} {1,8:N1} MB\" -f $d, $size } })",
       "PowerShell(\"=== app subdirs ===\"; Get-ChildItem -Force \"D:\\\\Harnie\\\\App v2\\\\app\" | Select-Object Name,Mode; \"=== release ===\"; Get-ChildItem -Force -Recurse \"D:\\\\Harnie\\\\App v2\\\\release\" | Select-Object FullName,@{n='MB';e={[math]::Round\\($_.Length/1MB,2\\)}} | Format-Table -AutoSize; \"=== app/build MB ===\"; if\\(Test-Path \"D:\\\\Harnie\\\\App v2\\\\app\\\\build\"\\){ [math]::Round\\(\\(Get-ChildItem \"D:\\\\Harnie\\\\App v2\\\\app\\\\build\" -Recurse -File | Measure-Object Length -Sum\\).Sum/1MB,1\\) })",
-      "PowerShell(git *)"
+      "PowerShell(git *)",
+      "PowerShell(cd \"D:\\\\Harnie\\\\App v2\"; git status -sb; \"---\"; \"Commits en remoto:\"; git log origin/main --oneline; \"---\"; \"Archivos rastreados: \" + \\(git ls-files | Measure-Object\\).Count)"
     ]
   }
 }
