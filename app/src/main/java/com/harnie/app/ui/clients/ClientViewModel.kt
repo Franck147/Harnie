@@ -81,6 +81,13 @@ class ClientViewModel(
         }
     }
 
+    fun filterByCountry(country: Country?) {
+        val current = _listState.value
+        if (current is ClientListUiState.Loaded) {
+            _listState.value = current.copy(filterCountry = country)
+        }
+    }
+
     fun loadClientOrders(clientId: String) {
         viewModelScope.launch {
             try {

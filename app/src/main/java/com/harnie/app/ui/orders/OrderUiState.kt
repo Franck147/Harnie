@@ -43,7 +43,8 @@ sealed interface OrderListUiState {
         val filterType: OrderType? = null,
         val filterCurrency: Currency? = null,
         val filterCountry: Country? = null,
-        val filterDate: String? = null
+        val filterDate: String? = null,
+        val filterBelowMin: Boolean = false
     ) : OrderListUiState
     data class Error(val message: String) : OrderListUiState
 }

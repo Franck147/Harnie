@@ -44,11 +44,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.harnie.app.R
 import com.harnie.app.core.model.Country
+import com.harnie.app.core.model.Currency
 import com.harnie.app.core.model.OrderType
+import com.harnie.app.core.util.toLocalDateDisplay
+import com.harnie.app.core.util.toLocalDateOnly
+import com.harnie.app.core.util.toLocalTimeDisplay
 import com.harnie.app.ui.components.HarnieCard
 import com.harnie.app.ui.components.MonoText
 import com.harnie.app.ui.components.ShimmerBox
@@ -67,6 +76,12 @@ fun OrderListScreen(
     viewModel: OrderViewModel = koinViewModel()
 ) {
     val listState by viewModel.listState.collectAsStateWithLifecycle()
+
+    // Recargar la lista al volver a esta pantalla (p.ej. tras crear una orden)
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        viewModel.refreshMyOrders()
+    }
+
     var showDatePicker by remember { mutableStateOf(false) }
     val context = LocalContext.current
     var csvContent by remember { mutableStateOf("") }
@@ -76,6 +91,8 @@ fun OrderListScreen(
     ) { uri ->
         if (uri != null && csvContent.isNotEmpty()) {
             context.contentResolver.openOutputStream(uri)?.use { stream ->
+                // BOM UTF-8 para que Excel respete tildes y caracteres especiales
+                stream.write(byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte()))
                 stream.write(csvContent.toByteArray(Charsets.UTF_8))
             }
         }
@@ -179,7 +196,7 @@ fun OrderListScreen(
                                         if (state.filterCountry == c) null else c
                                     )
                                 },
-                                label = { Text("${c.flag} ${c.displayName}") }
+                                label = { Text(c.flag) }
                             )
                         }
                     }
@@ -221,6 +238,13 @@ fun OrderListScreen(
                                 )
                             }
                         }
+
+                        // Filtro de montos pequenos (PEN < 1000, USD < 300)
+                        FilterChip(
+                            selected = state.filterBelowMin,
+                            onClick = { viewModel.filterByBelowMin(!state.filterBelowMin) },
+                            label = { Text("Montos pequeños") }
+                        )
                     }
 
                     Spacer(Modifier.height(8.dp))
@@ -228,7 +252,8 @@ fun OrderListScreen(
                     val filtered = state.orders.filter { order ->
                         (state.filterType == null || order.orderType == state.filterType) &&
                         (state.filterCountry == null || order.country == state.filterCountry.name) &&
-                        (state.filterDate == null || order.createdAt?.take(10) == state.filterDate)
+                        (state.filterDate == null || order.createdAt?.toLocalDateDisplay() == state.filterDate) &&
+                        (!state.filterBelowMin || isBelowMinAmount(order))
                     }
 
                     // Boton exportar
@@ -302,6 +327,20 @@ fun OrderListScreen(
     }
 }
 
+/**
+ * Determina si una orden esta por debajo del monto minimo segun su moneda:
+ * PEN < 1000, USD < 300. Otras monedas (p.ej. RUB) no aplican.
+ */
+private fun isBelowMinAmount(order: OrderItem): Boolean {
+    val amount = order.fiatAmount ?: return false
+    val threshold = when (order.sourceCurrency) {
+        Currency.PEN -> 1000.0
+        Currency.USD -> 300.0
+        else -> return false
+    }
+    return amount < threshold
+}
+
 private fun groupOrdersByDate(orders: List<OrderItem>): List<Pair<String, List<OrderItem>>> {
     val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
     val yesterday = kotlinx.datetime.LocalDate(today.year, today.monthNumber, today.dayOfMonth)
@@ -312,12 +351,7 @@ private fun groupOrdersByDate(orders: List<OrderItem>): List<Pair<String, List<O
 
     return orders
         .groupBy { order ->
-            val dateStr = order.createdAt?.take(10) ?: ""
-            try {
-                kotlinx.datetime.LocalDate.parse(dateStr)
-            } catch (_: Exception) {
-                null
-            }
+            order.createdAt?.toLocalDateOnly()
         }
         .toSortedMap(compareByDescending { it })
         .map { (date, items) ->
@@ -332,26 +366,65 @@ private fun groupOrdersByDate(orders: List<OrderItem>): List<Pair<String, List<O
 }
 
 private fun buildCsvContent(orders: List<OrderItem>): String {
-    val header = "Fecha,Hora,Tipo,Exchange,Pais,Moneda Origen,Moneda Destino,Metodo Pago,Monto Fiat,Precio por Unidad,Monto USDT,Comision Exchange,Cliente,Nota"
-    val rows = orders.map { o ->
-        val date = o.createdAt?.take(10) ?: ""
-        val time = o.createdAt?.substringAfter("T")?.take(8) ?: ""
-        val tipo = o.orderType.label
-        val exchange = o.exchange?.replace("_", " ") ?: ""
-        val pais = o.country ?: ""
-        val monOrigen = o.sourceCurrency.code
-        val monDestino = o.targetCurrency.code
-        val metodo = o.paymentMethod ?: ""
-        val fiat = o.fiatAmount?.let { String.format("%.2f", it) } ?: ""
-        val precio = o.pricePerUnit?.let { String.format("%.4f", it) } ?: ""
-        val usdt = o.usdtAmount?.let { String.format("%.2f", it) } ?: ""
-        val comision = o.exchangeCommission?.let { String.format("%.2f", it) } ?: ""
-        val cliente = listOfNotNull(o.clientName, o.clientLastName).joinToString(" ")
-        val nota = o.note?.replace(",", " ")?.replace("\n", " ") ?: ""
+    val sep = ";"
+    val header = listOf(
+        "ID Orden Venta",
+        "Monto USDT ENVIADO",
+        "Precio PEN por USDT",
+        "PEN Recibido",
+        "METODO DE PAGO",
+        "EXCHANGUE",
+        "Nombre de cliente",
+        "DNI O CARNET DE EXTRANJERIA",
+        "ID Orden Compra",
+        "PEN Enviado",
+        "Precio PEN por USDT",
+        "Monto USDT RECIBIDO",
+        "METODO DE PAGO",
+        "EXCHANGUE",
+        "NOMBRE CLIENTE"
+    ).joinToString(sep)
 
-        "$date,$time,$tipo,$exchange,$pais,$monOrigen,$monDestino,$metodo,$fiat,$precio,$usdt,$comision,$cliente,$nota"
+    fun esc(value: String?): String =
+        value?.replace(";", " ")?.replace(",", " ")?.replace("\n", " ")?.trim() ?: ""
+
+    fun money(value: Double?): String = value?.let { String.format("%.2f", it) } ?: ""
+    fun price(value: Double?): String = value?.let { String.format("%.4f", it) } ?: ""
+
+    val rows = orders.map { o ->
+        val exchange = esc(o.exchange?.replace("_", " "))
+        val cliente = esc(listOfNotNull(o.clientName, o.clientLastName).joinToString(" "))
+        val metodo = esc(o.paymentMethod)
+
+        if (o.orderType == OrderType.SELL) {
+            // Venta: enviamos USDT y recibimos PEN -> columnas 1-8
+            listOf(
+                esc(o.id),                // ID Orden Venta
+                money(o.usdtAmount),      // Monto USDT ENVIADO
+                price(o.pricePerUnit),    // Precio PEN por USDT
+                money(o.fiatAmount),      // PEN Recibido
+                metodo,                   // METODO DE PAGO
+                exchange,                 // EXCHANGUE
+                cliente,                  // Nombre de cliente
+                esc(o.documentNumber),    // DNI O CARNET DE EXTRANJERIA
+                "", "", "", "", "", "", ""
+            )
+        } else {
+            // Compra: enviamos PEN y recibimos USDT -> columnas 9-15
+            listOf(
+                "", "", "", "", "", "", "", "",
+                esc(o.id),                // ID Orden Compra
+                money(o.fiatAmount),      // PEN Enviado
+                price(o.pricePerUnit),    // Precio PEN por USDT
+                money(o.usdtAmount),      // Monto USDT RECIBIDO
+                metodo,                   // METODO DE PAGO
+                exchange,                 // EXCHANGUE
+                cliente                   // NOMBRE CLIENTE
+            )
+        }.joinToString(sep)
     }
-    return (listOf(header) + rows).joinToString("\n")
+    // "sep=;" indica a Excel el separador a usar al abrir el archivo
+    return (listOf("sep=$sep", header) + rows).joinToString("\n")
 }
 
 @Composable
@@ -378,7 +451,7 @@ private fun OrderCard(order: OrderItem, onClick: () -> Unit) {
 
         Spacer(Modifier.height(6.dp))
 
-        Row {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = "${order.sourceCurrency.flag} ${order.sourceCurrency.code}",
                 style = MaterialTheme.typography.bodyMedium
@@ -386,8 +459,15 @@ private fun OrderCard(order: OrderItem, onClick: () -> Unit) {
             Spacer(Modifier.width(4.dp))
             Text("→", style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.width(4.dp))
+            Icon(
+                painter = painterResource(R.drawable.ic_usdt),
+                contentDescription = "USDT",
+                tint = Color.Unspecified,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(Modifier.width(2.dp))
             Text(
-                text = "${order.targetCurrency.flag} ${order.targetCurrency.code}",
+                text = "USDT",
                 style = MaterialTheme.typography.bodyMedium
             )
             if (order.country != null) {
@@ -425,7 +505,7 @@ private fun OrderCard(order: OrderItem, onClick: () -> Unit) {
 
         if (order.createdAt != null) {
             Spacer(Modifier.height(2.dp))
-            val time = order.createdAt.substringAfter("T").take(8)
+            val time = order.createdAt.toLocalTimeDisplay()
             Text(
                 text = time,
                 style = MaterialTheme.typography.labelSmall,

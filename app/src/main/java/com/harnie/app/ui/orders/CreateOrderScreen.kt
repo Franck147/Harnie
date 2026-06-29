@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -49,9 +51,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.harnie.app.R
 import com.harnie.app.core.model.Country
 import com.harnie.app.core.model.Exchange
 import com.harnie.app.core.model.OrderType
@@ -101,6 +108,11 @@ fun CreateOrderScreen(
     val note by viewModel.note.collectAsStateWithLifecycle()
     val summary by viewModel.summary.collectAsStateWithLifecycle()
 
+    // Recargar la lista de clientes al volver a esta pantalla (p.ej. tras registrar uno nuevo)
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        viewModel.refreshClients()
+    }
+
     val snackbarHostState = remember { SnackbarHostState() }
     val orderId = remember { editOrderId?.take(8)?.uppercase() ?: UUID.randomUUID().toString().take(8).uppercase() }
     var showClientForm by remember { mutableStateOf(false) }
@@ -145,7 +157,8 @@ fun CreateOrderScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .padding(horizontal = 16.dp)
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(rememberScrollState())
+                .imePadding(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // ── 1. ID y Fecha/Hora ──
@@ -275,26 +288,17 @@ fun CreateOrderScreen(
                 val isBuy = orderType == OrderType.BUY
                 val actionSuffix = if (isBuy) "enviado" else "recibido"
 
-                val fiatLabel: String
-                val priceLabel: String
+                // Precio por USDT segun la moneda seleccionada del pais
+                val priceLabel = "Precio $selectedCurrency por USDT"
 
-                when {
-                    country == Country.PERU && selectedCurrency == "PEN" -> {
-                        fiatLabel = "PEN $actionSuffix"
-                        priceLabel = "Precio PEN por USD"
-                    }
-                    country == Country.PERU && selectedCurrency == "USD" -> {
-                        fiatLabel = "USD $actionSuffix"
-                        priceLabel = "Precio USD por USDT"
-                    }
-                    country == Country.ECUADOR -> {
-                        fiatLabel = "USD $actionSuffix"
-                        priceLabel = "Precio por USD"
-                    }
-                    else -> {
-                        fiatLabel = "RUB $actionSuffix"
-                        priceLabel = "Precio RUB"
-                    }
+                // El USDT se recibe en compra y se envia en venta
+                val usdtLabel = if (isBuy) "Monto USDT RECIBIDO" else "Monto USDT ENVIADO"
+
+                val fiatLabel: String = when {
+                    country == Country.PERU && selectedCurrency == "PEN" -> "PEN $actionSuffix"
+                    country == Country.PERU && selectedCurrency == "USD" -> "USD $actionSuffix"
+                    country == Country.ECUADOR -> "USD $actionSuffix"
+                    else -> "RUB $actionSuffix"
                 }
 
                 NumericField(fiatLabel, fiatAmount, viewModel::onFiatAmountChange)
@@ -303,7 +307,19 @@ fun CreateOrderScreen(
                 Spacer(Modifier.height(8.dp))
 
                 // 6.5 Monto USDT
-                NumericField("Monto USDT", usdtAmount, viewModel::onUsdtAmountChange)
+                NumericField(
+                    label = usdtLabel,
+                    value = usdtAmount,
+                    onValueChange = viewModel::onUsdtAmountChange,
+                    leadingIcon = {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_usdt),
+                            contentDescription = "USDT",
+                            tint = Color.Unspecified,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                )
                 Spacer(Modifier.height(8.dp))
 
                 // 6.6 Comision Exchange
@@ -486,9 +502,9 @@ fun CreateOrderScreen(
 
         LaunchedEffect(clientSaveState) {
             if (clientSaveState is SaveClientUiState.Success) {
+                viewModel.onNewClientRegistered(cName, cLastName)
                 showClientForm = false
                 clientViewModel.resetForm()
-                viewModel.refreshClients()
             }
         }
 
@@ -502,8 +518,10 @@ fun CreateOrderScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp)
-                    .padding(bottom = 32.dp),
+                    .padding(bottom = 32.dp)
+                    .imePadding(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Row(
@@ -625,12 +643,14 @@ private fun SectionTitle(text: String) {
 private fun NumericField(
     label: String,
     value: String,
-    onValueChange: (String) -> Unit
+    onValueChange: (String) -> Unit,
+    leadingIcon: @Composable (() -> Unit)? = null
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         label = { Text(label) },
+        leadingIcon = leadingIcon,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
         singleLine = true,
         shape = MaterialTheme.shapes.medium,

@@ -83,6 +83,9 @@ class OrderViewModel(
     private val _selectedClientId = MutableStateFlow<String?>(null)
     val selectedClientId: StateFlow<String?> = _selectedClientId.asStateFlow()
 
+    private val _documentType = MutableStateFlow<String?>(null)
+    private val _documentNumber = MutableStateFlow<String?>(null)
+
     private val _clientSuggestions = MutableStateFlow<List<ClientItem>>(emptyList())
     val clientSuggestions: StateFlow<List<ClientItem>> = _clientSuggestions.asStateFlow()
 
@@ -101,7 +104,40 @@ class OrderViewModel(
         viewModelScope.launch {
             try {
                 _allClients = clientRepository.getMyClients()
+                // Re-aplicar la busqueda actual ahora que ya hay clientes cargados
+                if (_selectedClientId.value == null) {
+                    searchClients(_clientName.value, _clientLastName.value)
+                }
+                // Re-enriquecer ordenes ya cargadas por si los clientes llegaron despues.
+                val current = _listState.value
+                if (current is OrderListUiState.Loaded) {
+                    _listState.value = current.copy(orders = enrichWithClientDocs(current.orders))
+                }
             } catch (_: Exception) { }
+        }
+    }
+
+    /**
+     * Completa el documento (DNI/carnet) de las ordenes que tienen cliente vinculado
+     * pero no guardaron el documento, tomandolo del cliente registrado. Asi el CSV y el
+     * detalle muestran el dato aunque la orden sea antigua o se haya creado sin adjuntarlo.
+     */
+    private fun enrichWithClientDocs(orders: List<OrderItem>): List<OrderItem> {
+        if (_allClients.isEmpty()) return orders
+        return orders.map { o ->
+            if (!o.documentNumber.isNullOrBlank() || o.clientId.isNullOrBlank()) {
+                o
+            } else {
+                val client = _allClients.firstOrNull { it.id == o.clientId }
+                if (client?.documentNumber.isNullOrBlank()) {
+                    o
+                } else {
+                    o.copy(
+                        documentType = o.documentType ?: client?.documentType,
+                        documentNumber = client?.documentNumber
+                    )
+                }
+            }
         }
     }
 
@@ -109,10 +145,32 @@ class OrderViewModel(
         viewModelScope.launch {
             _listState.value = OrderListUiState.Loading
             try {
-                val orders = orderRepository.getMyOrders()
+                val orders = enrichWithClientDocs(orderRepository.getMyOrders())
                 _listState.value = OrderListUiState.Loaded(orders = orders)
             } catch (e: Exception) {
                 _listState.value = OrderListUiState.Error(e.message ?: "Error")
+            }
+        }
+    }
+
+    /**
+     * Recarga las ordenes sin mostrar el estado de carga ni perder los filtros.
+     * Util al volver a la lista tras crear/editar una orden.
+     */
+    fun refreshMyOrders() {
+        viewModelScope.launch {
+            try {
+                val orders = enrichWithClientDocs(orderRepository.getMyOrders())
+                val current = _listState.value
+                if (current is OrderListUiState.Loaded) {
+                    _listState.value = current.copy(orders = orders)
+                } else {
+                    _listState.value = OrderListUiState.Loaded(orders = orders)
+                }
+            } catch (e: Exception) {
+                if (_listState.value !is OrderListUiState.Loaded) {
+                    _listState.value = OrderListUiState.Error(e.message ?: "Error")
+                }
             }
         }
     }
@@ -124,7 +182,7 @@ class OrderViewModel(
                 .collect { orders ->
                     val current = _listState.value
                     if (current is OrderListUiState.Loaded) {
-                        _listState.value = current.copy(orders = orders)
+                        _listState.value = current.copy(orders = enrichWithClientDocs(orders))
                     }
                 }
         }
@@ -155,6 +213,13 @@ class OrderViewModel(
         val current = _listState.value
         if (current is OrderListUiState.Loaded) {
             _listState.value = current.copy(filterDate = date)
+        }
+    }
+
+    fun filterByBelowMin(enabled: Boolean) {
+        val current = _listState.value
+        if (current is OrderListUiState.Loaded) {
+            _listState.value = current.copy(filterBelowMin = enabled)
         }
     }
 
@@ -203,6 +268,8 @@ class OrderViewModel(
                 _clientName.value = order.clientName ?: ""
                 _clientLastName.value = order.clientLastName ?: ""
                 _selectedClientId.value = order.clientId
+                _documentType.value = order.documentType
+                _documentNumber.value = order.documentNumber
                 _note.value = order.note ?: ""
             } catch (_: Exception) { }
         }
@@ -223,6 +290,8 @@ class OrderViewModel(
         _clientName.value = ""
         _clientLastName.value = ""
         _selectedClientId.value = null
+        _documentType.value = null
+        _documentNumber.value = null
         _clientSuggestions.value = emptyList()
         _note.value = ""
     }
@@ -251,25 +320,31 @@ class OrderViewModel(
     fun onClientNameChange(v: String) {
         _clientName.value = v
         _selectedClientId.value = null
+        _documentType.value = null
+        _documentNumber.value = null
         searchClients(v, _clientLastName.value)
     }
 
     fun onClientLastNameChange(v: String) {
         _clientLastName.value = v
         _selectedClientId.value = null
+        _documentType.value = null
+        _documentNumber.value = null
         searchClients(_clientName.value, v)
     }
 
     private fun searchClients(name: String, lastName: String) {
-        val query = "$name $lastName".trim().lowercase()
+        val n = name.trim().lowercase()
+        val l = lastName.trim().lowercase()
+        val query = "$n $l".trim()
         if (query.length < 2) {
             _clientSuggestions.value = emptyList()
             return
         }
-        _clientSuggestions.value = _allClients.filter {
-            it.fullName.lowercase().contains(query) ||
-            it.name.lowercase().contains(name.lowercase()) ||
-            it.lastName.lowercase().contains(lastName.lowercase())
+        _clientSuggestions.value = _allClients.filter { client ->
+            client.fullName.lowercase().contains(query) ||
+            (n.isNotEmpty() && client.name.lowercase().contains(n)) ||
+            (l.isNotEmpty() && client.lastName.lowercase().contains(l))
         }.take(5)
     }
 
@@ -277,6 +352,8 @@ class OrderViewModel(
         _clientName.value = client.name
         _clientLastName.value = client.lastName
         _selectedClientId.value = client.id
+        _documentType.value = client.documentType
+        _documentNumber.value = client.documentNumber
         _clientSuggestions.value = emptyList()
     }
 
@@ -288,11 +365,35 @@ class OrderViewModel(
         loadClients()
     }
 
+    /**
+     * Tras registrar un cliente nuevo desde el formulario de la orden,
+     * recarga la lista y lo selecciona automaticamente (sin refrescar la pagina).
+     */
+    fun onNewClientRegistered(name: String, lastName: String) {
+        viewModelScope.launch {
+            try {
+                _allClients = clientRepository.getMyClients()
+            } catch (_: Exception) { }
+
+            val match = _allClients.firstOrNull {
+                it.name.equals(name.trim(), ignoreCase = true) &&
+                it.lastName.equals(lastName.trim(), ignoreCase = true)
+            }
+            if (match != null) {
+                selectClient(match)
+            } else {
+                _clientName.value = name.trim()
+                _clientLastName.value = lastName.trim()
+                _clientSuggestions.value = emptyList()
+            }
+        }
+    }
+
     @Suppress("UNCHECKED_CAST")
     val summary: StateFlow<String> = combine(
         _orderType, _exchange, _country, _selectedCurrency,
         _paymentMethod, _fiatAmount, _pricePerUnit, _usdtAmount,
-        _exchangeCommission
+        _exchangeCommission, _clientName, _clientLastName
     ) { values ->
         val type = values[0] as OrderType
         val exch = values[1] as Exchange
@@ -303,9 +404,12 @@ class OrderViewModel(
         val price = (values[6] as String).ifEmpty { "0" }
         val usdt = (values[7] as String).ifEmpty { "0" }
         val commission = values[8] as String
+        val cName = (values[9] as String).trim()
+        val cLastName = (values[10] as String).trim()
 
         val action = if (type == OrderType.BUY) "Compra" else "Venta"
         val fiatLabel = if (type == OrderType.BUY) "enviado" else "recibido"
+        val clientFullName = "$cName $cLastName".trim()
 
         buildString {
             appendLine("Tipo: $action")
@@ -319,8 +423,25 @@ class OrderViewModel(
             if (commission.isNotEmpty()) {
                 appendLine("Comision Exchange: $commission")
             }
+            appendLine("Cliente: ${clientFullName.ifEmpty { "-" }}")
         }.trimEnd()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+
+    /**
+     * Convierte la etiqueta de tipo de documento del cliente (texto libre) al valor
+     * del ENUM document_type de la tabla orders. Devuelve null si no hay equivalencia
+     * (p. ej. "Cedula") para evitar que falle el insert por una violacion de enum.
+     */
+    private fun mapDocumentTypeToEnum(raw: String?): String? {
+        val v = raw?.trim()?.lowercase() ?: return null
+        return when {
+            v.isEmpty() -> null
+            v.startsWith("dni") -> "DNI"
+            v.startsWith("carnet") -> "CARNET_EXTRANJERIA"
+            v.startsWith("pasaporte") -> "PASAPORTE"
+            else -> null
+        }
+    }
 
     fun submitOrder() {
         viewModelScope.launch {
@@ -336,6 +457,25 @@ class OrderViewModel(
                 val curr = _selectedCurrency.value
                 val sourceCurr = curr
                 val targetCurr = if (curr == "PEN") "USD" else if (curr == "RUB") "USD" else "PEN"
+
+                // Fallback: si no se toco la sugerencia de cliente (no hay documento cargado)
+                // pero el nombre/apellido coincide exactamente con un cliente registrado,
+                // recuperamos su documento para que aparezca en el CSV.
+                if (_documentNumber.value.isNullOrBlank()) {
+                    val name = _clientName.value.trim()
+                    val lastName = _clientLastName.value.trim()
+                    if (name.isNotEmpty()) {
+                        val match = _allClients.firstOrNull {
+                            it.name.equals(name, ignoreCase = true) &&
+                            it.lastName.equals(lastName, ignoreCase = true)
+                        }
+                        if (match != null) {
+                            _selectedClientId.value = match.id
+                            _documentType.value = match.documentType
+                            _documentNumber.value = match.documentNumber
+                        }
+                    }
+                }
 
                 val dto = CreateOrderDto(
                     creatorId = userId,
@@ -353,6 +493,10 @@ class OrderViewModel(
                     pricePerUnit = price,
                     usdtAmount = usdt,
                     exchangeCommission = commission,
+                    // orders.document_type es un ENUM ('DNI','CARNET_EXTRANJERIA','PASAPORTE');
+                    // los clientes guardan etiquetas libres, asi que mapeamos a un valor valido o null.
+                    documentType = mapDocumentTypeToEnum(_documentType.value),
+                    documentNumber = _documentNumber.value,
                     clientId = _selectedClientId.value,
                     clientName = _clientName.value.trim().ifEmpty { null },
                     clientLastName = _clientLastName.value.trim().ifEmpty { null },

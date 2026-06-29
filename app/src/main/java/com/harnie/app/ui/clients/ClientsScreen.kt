@@ -150,19 +150,58 @@ fun ClientsScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     } else {
-                        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            items(state.clients, key = { it.id }) { client ->
-                                ClientCard(
-                                    client = client,
-                                    onClick = { onClientDetail(client.id) },
-                                    onEdit = {
-                                        viewModel.prepopulateForEdit(client)
-                                        showForm = true
+                        // Filtro por pais (Todos / Peru / Ecuador / Rusia)
+                        Spacer(Modifier.height(8.dp))
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(
+                                selected = state.filterCountry == null,
+                                onClick = { viewModel.filterByCountry(null) },
+                                label = { Text("Todos") }
+                            )
+                            Country.entries.forEach { c ->
+                                FilterChip(
+                                    selected = state.filterCountry == c,
+                                    onClick = {
+                                        viewModel.filterByCountry(
+                                            if (state.filterCountry == c) null else c
+                                        )
                                     },
-                                    onDelete = { showDeleteDialog = client.id }
+                                    label = { Text("${c.flag} ${c.displayName}") },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                        selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
                                 )
                             }
-                            item { Spacer(Modifier.height(80.dp)) }
+                        }
+                        Spacer(Modifier.height(12.dp))
+
+                        val filtered = state.clients.filter { client ->
+                            state.filterCountry == null || client.country == state.filterCountry.name
+                        }
+
+                        if (filtered.isEmpty()) {
+                            Spacer(Modifier.height(24.dp))
+                            Text(
+                                text = "No hay clientes para este pais",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                items(filtered, key = { it.id }) { client ->
+                                    ClientCard(
+                                        client = client,
+                                        onClick = { onClientDetail(client.id) },
+                                        onEdit = {
+                                            viewModel.prepopulateForEdit(client)
+                                            showForm = true
+                                        },
+                                        onDelete = { showDeleteDialog = client.id }
+                                    )
+                                }
+                                item { Spacer(Modifier.height(80.dp)) }
+                            }
                         }
                     }
                 }

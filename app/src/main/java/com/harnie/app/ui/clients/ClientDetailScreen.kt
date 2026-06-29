@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.harnie.app.core.model.Country
+import com.harnie.app.core.util.toLocalDateDisplay
 import com.harnie.app.ui.components.HarnieCard
 import com.harnie.app.ui.components.MonoText
 import com.harnie.app.ui.components.ShimmerBox
@@ -205,7 +206,7 @@ private fun ClientOrderCard(order: OrderItem) {
                 MonoText(text = "${order.sourceCurrency.symbol}${String.format("%.2f", order.fiatAmount)}")
             }
             if (order.createdAt != null) {
-                val date = order.createdAt.take(10)
+                val date = order.createdAt.toLocalDateDisplay()
                 Text(
                     text = date,
                     style = MaterialTheme.typography.labelSmall,

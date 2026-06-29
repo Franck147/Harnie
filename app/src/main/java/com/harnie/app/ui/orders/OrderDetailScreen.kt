@@ -35,6 +35,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.harnie.app.core.util.toLocalDateDisplay
+import com.harnie.app.core.util.toLocalTimeDisplay
 import com.harnie.app.ui.components.HarnieCard
 import com.harnie.app.ui.components.ShimmerBox
 import org.koin.androidx.compose.koinViewModel
@@ -142,8 +144,8 @@ fun OrderDetailScreen(
                             color = MaterialTheme.colorScheme.primary
                         )
                         if (o.createdAt != null) {
-                            val date = o.createdAt.take(10)
-                            val time = o.createdAt.substringAfter("T").take(8)
+                            val date = o.createdAt.toLocalDateDisplay()
+                            val time = o.createdAt.toLocalTimeDisplay()
                             Text(
                                 text = "$date  $time",
                                 style = MaterialTheme.typography.labelLarge,
@@ -164,8 +166,6 @@ fun OrderDetailScreen(
                     DetailRow("Tipo", o.orderType.label)
                     DetailRow("Exchange", o.exchange?.replace("_", " ") ?: "-")
                     DetailRow("Pais", o.country ?: "-")
-                    DetailRow("Moneda origen", "${o.sourceCurrency.flag} ${o.sourceCurrency.code}")
-                    DetailRow("Moneda destino", "${o.targetCurrency.flag} ${o.targetCurrency.code}")
                 }
 
                 // Monto
@@ -186,7 +186,7 @@ fun OrderDetailScreen(
                         if (o.pricePerUnit != null) String.format("%.4f", o.pricePerUnit) else "-"
                     )
                     DetailRow(
-                        "Monto USDT",
+                        "Monto USDT ${if (o.orderType.label == "Compra") "recibido" else "enviado"}",
                         if (o.usdtAmount != null) String.format("%.2f", o.usdtAmount) else "-"
                     )
                     if (o.exchangeCommission != null && o.exchangeCommission > 0) {
@@ -204,6 +204,9 @@ fun OrderDetailScreen(
                         )
                         Spacer(Modifier.height(12.dp))
                         DetailRow("Nombre", "${o.clientName ?: ""} ${o.clientLastName ?: ""}".trim())
+                        if (!o.documentNumber.isNullOrBlank()) {
+                            DetailRow(documentTypeLabel(o.documentType), o.documentNumber)
+                        }
                     }
                 }
 
@@ -259,6 +262,18 @@ fun OrderDetailScreen(
                 Spacer(Modifier.height(24.dp))
             }
         }
+    }
+}
+
+/** Etiqueta legible para el tipo de documento almacenado (enum o texto libre). */
+private fun documentTypeLabel(raw: String?): String {
+    val v = raw?.trim()?.uppercase()?.replace(" ", "_") ?: ""
+    return when {
+        v.startsWith("DNI") -> "DNI"
+        v.startsWith("CARNET") -> "Carnet de extranjeria"
+        v.startsWith("PASAPORTE") -> "Pasaporte"
+        v.startsWith("CEDULA") || v.startsWith("CÉDULA") -> "Cedula"
+        else -> "Documento"
     }
 }
 

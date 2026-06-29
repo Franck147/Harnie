@@ -1,5 +1,7 @@
 package com.harnie.app.ui.clients
 
+import com.harnie.app.core.model.Country
+
 data class ClientItem(
     val id: String,
     val name: String,
@@ -18,7 +20,10 @@ data class ClientItem(
 
 sealed interface ClientListUiState {
     data object Loading : ClientListUiState
-    data class Loaded(val clients: List<ClientItem>) : ClientListUiState
+    data class Loaded(
+        val clients: List<ClientItem>,
+        val filterCountry: Country? = null
+    ) : ClientListUiState
     data class Error(val message: String) : ClientListUiState
 }
 
