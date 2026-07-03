@@ -391,29 +391,45 @@ private fun buildCsvContent(orders: List<OrderItem>): String {
     fun money(value: Double?): String = value?.let { String.format("%.2f", it) } ?: ""
     fun price(value: Double?): String = value?.let { String.format("%.4f", it) } ?: ""
 
-    val rows = orders.map { o ->
-        val exchange = esc(o.exchange?.replace("_", " "))
-        val cliente = esc(listOfNotNull(o.clientName, o.clientLastName).joinToString(" "))
-        val metodo = esc(o.paymentMethod)
+    // Separar ordenes en ventas y compras
+    val ventas = orders.filter { it.orderType == OrderType.SELL }
+    val compras = orders.filter { it.orderType == OrderType.BUY }
 
-        if (o.orderType == OrderType.SELL) {
-            // Venta: enviamos USDT y recibimos PEN -> columnas 1-8
+    // Columnas vacias para cuando una lista se quede sin elementos
+    val emptySell = List(8) { "" }   // 8 columnas de venta
+    val emptyBuy = List(7) { "" }    // 7 columnas de compra
+
+    val maxRows = maxOf(ventas.size, compras.size)
+
+    val rows = (0 until maxRows).map { i ->
+        // Columnas de venta (izquierda)
+        val sellCols = if (i < ventas.size) {
+            val o = ventas[i]
+            val exchange = esc(o.exchange?.replace("_", " "))
+            val cliente = esc(listOfNotNull(o.clientName, o.clientLastName).joinToString(" "))
+            val metodo = esc(o.paymentMethod)
             listOf(
-                esc(o.id),                // ID Orden Venta
+                esc(o.shortId ?: o.id),   // ID Orden Venta
                 money(o.usdtAmount),      // Monto USDT ENVIADO
                 price(o.pricePerUnit),    // Precio PEN por USDT
                 money(o.fiatAmount),      // PEN Recibido
                 metodo,                   // METODO DE PAGO
                 exchange,                 // EXCHANGUE
                 cliente,                  // Nombre de cliente
-                esc(o.documentNumber),    // DNI O CARNET DE EXTRANJERIA
-                "", "", "", "", "", "", ""
+                esc(o.documentNumber)     // DNI O CARNET DE EXTRANJERIA
             )
         } else {
-            // Compra: enviamos PEN y recibimos USDT -> columnas 9-15
+            emptySell
+        }
+
+        // Columnas de compra (derecha)
+        val buyCols = if (i < compras.size) {
+            val o = compras[i]
+            val exchange = esc(o.exchange?.replace("_", " "))
+            val cliente = esc(listOfNotNull(o.clientName, o.clientLastName).joinToString(" "))
+            val metodo = esc(o.paymentMethod)
             listOf(
-                "", "", "", "", "", "", "", "",
-                esc(o.id),                // ID Orden Compra
+                esc(o.shortId ?: o.id),   // ID Orden Compra
                 money(o.fiatAmount),      // PEN Enviado
                 price(o.pricePerUnit),    // Precio PEN por USDT
                 money(o.usdtAmount),      // Monto USDT RECIBIDO
@@ -421,7 +437,11 @@ private fun buildCsvContent(orders: List<OrderItem>): String {
                 exchange,                 // EXCHANGUE
                 cliente                   // NOMBRE CLIENTE
             )
-        }.joinToString(sep)
+        } else {
+            emptyBuy
+        }
+
+        (sellCols + buyCols).joinToString(sep)
     }
     // "sep=;" indica a Excel el separador a usar al abrir el archivo
     return (listOf("sep=$sep", header) + rows).joinToString("\n")
@@ -434,14 +454,26 @@ private fun OrderCard(order: OrderItem, onClick: () -> Unit) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(
-                text = if (order.orderType.label == "Compra") "Compra" else "Venta",
-                style = MaterialTheme.typography.titleMedium,
-                color = if (order.orderType.label == "Compra")
-                    MaterialTheme.colorScheme.primary
-                else
-                    MaterialTheme.colorScheme.error
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (order.orderType.label == "Compra") "Compra" else "Venta",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (order.orderType.label == "Compra")
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.error
+                )
+                if (order.shortId != null) {
+                    Text(
+                        text = order.shortId,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
             Text(
                 text = order.exchange ?: "",
                 style = MaterialTheme.typography.labelLarge,
@@ -505,9 +537,10 @@ private fun OrderCard(order: OrderItem, onClick: () -> Unit) {
 
         if (order.createdAt != null) {
             Spacer(Modifier.height(2.dp))
+            val date = order.createdAt.toLocalDateDisplay()
             val time = order.createdAt.toLocalTimeDisplay()
             Text(
-                text = time,
+                text = "$date  $time",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.outline
             )

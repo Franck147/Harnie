@@ -31,6 +31,7 @@ data class OrderDto(
     @SerialName("client_name") val clientName: String? = null,
     @SerialName("client_last_name") val clientLastName: String? = null,
     val note: String? = null,
+    @SerialName("short_id") val shortId: String? = null,
     @SerialName("created_at") val createdAt: String? = null
 )
 
@@ -58,5 +59,6 @@ data class CreateOrderDto(
     @SerialName("client_id") val clientId: String? = null,
     @SerialName("client_name") val clientName: String? = null,
     @SerialName("client_last_name") val clientLastName: String? = null,
-    val note: String? = null
+    val note: String? = null,
+    @SerialName("created_at") val createdAt: String? = null
 )

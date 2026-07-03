@@ -14,7 +14,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -40,6 +42,7 @@ fun DashboardScreen(
     onNavigateToOrders: () -> Unit,
     onNavigateToClients: () -> Unit,
     onNavigateToCreateOrder: () -> Unit,
+    onNavigateToSimulator: () -> Unit,
     viewModel: DashboardViewModel = koinViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -105,6 +108,13 @@ fun DashboardScreen(
                         )
                     }
 
+                    Spacer(Modifier.height(16.dp))
+
+                    SimulatorMenuButton(
+                        onClick = onNavigateToSimulator,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
                     Spacer(Modifier.height(24.dp))
                 }
 
@@ -155,3 +165,48 @@ private fun MenuButton(
         }
     }
 }
+
+@Composable
+private fun SimulatorMenuButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        onClick = onClick,
+        modifier = modifier,
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Calculate,
+                contentDescription = "Simulador",
+                modifier = Modifier.size(36.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Column {
+                Text(
+                    text = "Simulador",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "Calcular oportunidades de arbitraje",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                )
+            }
+        }
+    }
+}
+

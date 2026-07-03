@@ -139,7 +139,7 @@ fun OrderDetailScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "ID: ${o.id.take(8).uppercase()}",
+                            text = "ID: ${o.shortId ?: o.id.take(8).uppercase()}",
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.primary
                         )

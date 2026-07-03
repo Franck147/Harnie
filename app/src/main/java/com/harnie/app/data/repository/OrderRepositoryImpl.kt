@@ -128,6 +128,7 @@ class OrderRepositoryImpl(
         clientName = clientName,
         clientLastName = clientLastName,
         note = note,
+        shortId = shortId,
         createdAt = createdAt
     )
 

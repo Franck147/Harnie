@@ -12,4 +12,5 @@ sealed interface NavRoute {
     @Serializable data object Clients : NavRoute
     @Serializable data class ClientDetail(val clientId: String) : NavRoute
     @Serializable data object History : NavRoute
+    @Serializable data object Simulator : NavRoute
 }

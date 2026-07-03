@@ -14,6 +14,8 @@ import com.harnie.app.ui.history.HistoryScreen
 import com.harnie.app.ui.orders.CreateOrderScreen
 import com.harnie.app.ui.orders.OrderDetailScreen
 import com.harnie.app.ui.orders.OrderListScreen
+import com.harnie.app.ui.simulator.SimulatorScreen
+
 
 @Composable
 fun HarnieNavHost(
@@ -39,7 +41,8 @@ fun HarnieNavHost(
             DashboardScreen(
                 onNavigateToOrders = { navController.navigate(NavRoute.OrderList) },
                 onNavigateToClients = { navController.navigate(NavRoute.Clients) },
-                onNavigateToCreateOrder = { navController.navigate(NavRoute.CreateOrder) }
+                onNavigateToCreateOrder = { navController.navigate(NavRoute.CreateOrder) },
+                onNavigateToSimulator = { navController.navigate(NavRoute.Simulator) }
             )
         }
 
@@ -102,6 +105,12 @@ fun HarnieNavHost(
 
         composable<NavRoute.History> {
             HistoryScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable<NavRoute.Simulator> {
+            SimulatorScreen(
                 onBack = { navController.popBackStack() }
             )
         }

@@ -94,6 +94,10 @@ class OrderViewModel(
     private val _note = MutableStateFlow("")
     val note: StateFlow<String> = _note.asStateFlow()
 
+    // Fecha personalizada (null = ahora / hoy)
+    private val _orderDate = MutableStateFlow<String?>(null)
+    val orderDate: StateFlow<String?> = _orderDate.asStateFlow()
+
     init {
         loadMyOrders()
         observeOrders()
@@ -294,6 +298,7 @@ class OrderViewModel(
         _documentNumber.value = null
         _clientSuggestions.value = emptyList()
         _note.value = ""
+        _orderDate.value = null
     }
 
     fun onOrderTypeChange(type: OrderType) { _orderType.value = type }
@@ -316,6 +321,7 @@ class OrderViewModel(
     fun onUsdtAmountChange(v: String) { _usdtAmount.value = v }
     fun onExchangeCommissionChange(v: String) { _exchangeCommission.value = v }
     fun onNoteChange(v: String) { _note.value = v }
+    fun onOrderDateChange(date: String?) { _orderDate.value = date }
 
     fun onClientNameChange(v: String) {
         _clientName.value = v
@@ -393,7 +399,8 @@ class OrderViewModel(
     val summary: StateFlow<String> = combine(
         _orderType, _exchange, _country, _selectedCurrency,
         _paymentMethod, _fiatAmount, _pricePerUnit, _usdtAmount,
-        _exchangeCommission, _clientName, _clientLastName
+        _exchangeCommission, _clientName, _clientLastName,
+        _documentType, _documentNumber
     ) { values ->
         val type = values[0] as OrderType
         val exch = values[1] as Exchange
@@ -406,6 +413,8 @@ class OrderViewModel(
         val commission = values[8] as String
         val cName = (values[9] as String).trim()
         val cLastName = (values[10] as String).trim()
+        val docType = values[11] as? String
+        val docNumber = values[12] as? String
 
         val action = if (type == OrderType.BUY) "Compra" else "Venta"
         val fiatLabel = if (type == OrderType.BUY) "enviado" else "recibido"
@@ -424,6 +433,16 @@ class OrderViewModel(
                 appendLine("Comision Exchange: $commission")
             }
             appendLine("Cliente: ${clientFullName.ifEmpty { "-" }}")
+            if (!docNumber.isNullOrBlank()) {
+                val docLabel = when {
+                    docType?.uppercase()?.startsWith("DNI") == true -> "DNI"
+                    docType?.uppercase()?.startsWith("CARNET") == true -> "CE"
+                    docType?.uppercase()?.startsWith("PASAPORTE") == true -> "Pasaporte"
+                    docType?.uppercase()?.startsWith("CEDULA") == true || docType?.uppercase()?.startsWith("CÉDULA") == true -> "Cedula"
+                    else -> "Doc"
+                }
+                appendLine("$docLabel: $docNumber")
+            }
         }.trimEnd()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
 
@@ -500,7 +519,8 @@ class OrderViewModel(
                     clientId = _selectedClientId.value,
                     clientName = _clientName.value.trim().ifEmpty { null },
                     clientLastName = _clientLastName.value.trim().ifEmpty { null },
-                    note = _note.value.ifEmpty { null }
+                    note = _note.value.ifEmpty { null },
+                    createdAt = _orderDate.value?.let { "${it}T00:00:00-05:00" }
                 )
 
                 val editId = _editingOrderId.value

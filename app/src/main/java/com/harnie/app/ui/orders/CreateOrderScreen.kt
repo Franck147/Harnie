@@ -19,11 +19,15 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -41,7 +45,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.ui.Alignment
 import androidx.compose.runtime.Composable
@@ -66,12 +72,11 @@ import com.harnie.app.ui.clients.ClientViewModel
 import com.harnie.app.ui.clients.SaveClientUiState
 import com.harnie.app.ui.components.HarnieCard
 import com.harnie.app.ui.components.ShimmerBox
-import kotlinx.coroutines.delay
 import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.koin.androidx.compose.koinViewModel
-import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -106,6 +111,7 @@ fun CreateOrderScreen(
     val selectedClientId by viewModel.selectedClientId.collectAsStateWithLifecycle()
     val clientSuggestions by viewModel.clientSuggestions.collectAsStateWithLifecycle()
     val note by viewModel.note.collectAsStateWithLifecycle()
+    val orderDate by viewModel.orderDate.collectAsStateWithLifecycle()
     val summary by viewModel.summary.collectAsStateWithLifecycle()
 
     // Recargar la lista de clientes al volver a esta pantalla (p.ej. tras registrar uno nuevo)
@@ -114,18 +120,46 @@ fun CreateOrderScreen(
     }
 
     val snackbarHostState = remember { SnackbarHostState() }
-    val orderId = remember { editOrderId?.take(8)?.uppercase() ?: UUID.randomUUID().toString().take(8).uppercase() }
     var showClientForm by remember { mutableStateOf(false) }
+    var showDatePicker by remember { mutableStateOf(false) }
 
-    var currentTime by remember { mutableStateOf("") }
-    LaunchedEffect(Unit) {
-        while (true) {
-            val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
-            currentTime = "%02d/%02d/%04d  %02d:%02d:%02d".format(
-                now.dayOfMonth, now.monthNumber, now.year,
-                now.hour, now.minute, now.second
-            )
-            delay(1000)
+    // Calcular la fecha a mostrar
+    val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+    val displayDate = if (orderDate != null) {
+        val parts = orderDate!!.split("-")
+        "%s/%s/%s".format(parts[2], parts[1], parts[0])
+    } else {
+        "%02d/%02d/%04d".format(today.dayOfMonth, today.monthNumber, today.year)
+    }
+
+    // DatePicker dialog para elegir fecha pasada
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState()
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDatePicker = false
+                        val millis = datePickerState.selectedDateMillis
+                        if (millis != null) {
+                            val instant = Instant.fromEpochMilliseconds(millis)
+                            val date = instant.toLocalDateTime(TimeZone.UTC).date
+                            // Si es hoy, limpiar para usar DEFAULT now()
+                            if (date == today) {
+                                viewModel.onOrderDateChange(null)
+                            } else {
+                                viewModel.onOrderDateChange(date.toString())
+                            }
+                        }
+                    }
+                ) { Text("Seleccionar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("Cancelar") }
+            }
+        ) {
+            DatePicker(state = datePickerState)
         }
     }
 
@@ -165,18 +199,42 @@ fun CreateOrderScreen(
             HarnieCard {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "ID: $orderId",
+                        text = if (isEditMode) "Editando orden" else "Nueva orden",
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    Text(
-                        text = currentTime,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        AssistChip(
+                            onClick = { showDatePicker = true },
+                            label = { Text(displayDate) },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.CalendarMonth,
+                                    contentDescription = "Elegir fecha",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        )
+                        if (orderDate != null) {
+                            IconButton(
+                                onClick = { viewModel.onOrderDateChange(null) },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = "Usar fecha de hoy",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
 

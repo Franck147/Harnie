@@ -33,6 +33,7 @@ data class OrderItem(
     val clientName: String? = null,
     val clientLastName: String? = null,
     val note: String? = null,
+    val shortId: String? = null,
     val createdAt: String? = null
 )
 
